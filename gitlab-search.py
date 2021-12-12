@@ -1,8 +1,10 @@
 #!/usr/bin/python3
+from os import name
 import gitlab
 import sys
 import argparse
 import re
+import json
 
 def eprint(*args, **kwargs):
     # https://stackoverflow.com/a/14981125
@@ -45,8 +47,10 @@ def search(gitlab_server, token, file_filter, text, group=None, project_filter=N
             eprint("Project: ",path)
 
         files = []
+        default_branch = project.default_branch
+
         try:
-            files = project.repository_tree(recursive=True, all=True)
+            files = project.repository_tree(recursive=True, all=True, ref=default_branch)
         except Exception as e:
             print(str(e), "Error getting tree in project:", project.name)
 
@@ -62,12 +66,15 @@ def search(gitlab_server, token, file_filter, text, group=None, project_filter=N
                 filename_matches=file_filter == file['name']
             
             if filename_matches:
-                file_content = project.files.raw(file_path=file['path'], ref='master')
+                file_content = project.files.raw(file_path=file['path'], ref=default_branch)
                 
                 if text in str(file_content):
                     return_value.append({
-                        "project": project.name,
-                        "file": file['path']
+                        "project_id": project.id,
+                        "project_name": project.name,
+                        "branch": default_branch,
+                        "project_path": project.path_with_namespace,
+                        "file": file['path'],
                     })
     
     return return_value
@@ -75,7 +82,7 @@ def search(gitlab_server, token, file_filter, text, group=None, project_filter=N
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-debug",        action="store_true", help="Show all API calls")
-    parser.add_argument("--internal-debug",   action="store_true", help="Show all iterated items and other dubugv info")
+    parser.add_argument("--internal-debug",   action="store_true", help="Show all iterated items and other debug info")
     parser.add_argument("--filename-is-regex",action="store_true", help="FILE_FILTER become Python regular expressions, so it can be '.*\.cpp' to search for all files with extension cpp")
     parser.add_argument("GITLAB_SERVER",      nargs=1,             help="URL of Gitlab server, eg. https://gitlab.com/")
     parser.add_argument("GITLAB_USER_TOKEN",  nargs=1,             help="Access token with api_read access")
@@ -83,6 +90,7 @@ if __name__ == '__main__':
     parser.add_argument("TEXT_TO_SEARCH",     nargs=1,             help="Text to find in files")
     parser.add_argument("GROUP",              nargs='?',           help="Group to search for projects in, can be subgroup eg. parent_group/subgroup/another_subgroup")
     parser.add_argument("PROJECT_FILTER",     nargs='?',           help="Filter for project names to look into")
+    parser.add_argument("-o", "--output", help="File name for export json")
     args = parser.parse_args()
 
     api_debug_arg      = args.api_debug
@@ -94,5 +102,21 @@ if __name__ == '__main__':
     text_arg           = args.TEXT_TO_SEARCH[0]
     group_arg          = None if args.GROUP          == None else args.GROUP
     project_filter_arg = None if args.PROJECT_FILTER == None else args.PROJECT_FILTER
+    file_name          = args.output
 
-    print(search(gitlab_server_arg, token_arg, file_filter_arg, text_arg, group_arg, project_filter_arg, api_debug_arg, internal_debug_arg, regex_arg))
+    result = search(
+        gitlab_server_arg, 
+        token_arg, 
+        file_filter_arg, 
+        text_arg, 
+        group_arg, 
+        project_filter_arg, 
+        api_debug_arg, 
+        internal_debug_arg, 
+        regex_arg
+        )
+    if file_name:
+        with open(file_name, "w+") as f:
+            f.write(json.dumps(result))
+    else:
+        print(result)
