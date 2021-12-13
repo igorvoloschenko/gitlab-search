@@ -37,8 +37,9 @@ def search(gitlab_server, token, file_filter, text, group=None, project_filter=N
     if internal_debug:
         eprint("Number of projects that will be searched:", len(projects))
 
-
-    for project in projects:
+    num_projects = len(projects)
+    for i, project in enumerate(projects):
+        eprint(f"Process status: {i+1}/{num_projects}")
         if internal_debug:
             if hasattr(project, 'path'):
                 path = project.path
