@@ -48,7 +48,11 @@ def search(gitlab_server, token, file_filter, text, group=None, project_filter=N
             eprint("Project: ",path)
 
         files = []
-        default_branch = project.default_branch
+        try:
+            default_branch = project.default_branch
+        except Exception as e:
+            print(str(e), "Error getting default_branch in project:", project.name)
+            default_branch = "master"
 
         try:
             files = project.repository_tree(recursive=True, all=True, ref=default_branch)
