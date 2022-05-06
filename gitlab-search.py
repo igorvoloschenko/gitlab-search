@@ -10,7 +10,7 @@ def eprint(*args, **kwargs):
     # https://stackoverflow.com/a/14981125
     print(*args, file=sys.stderr, **kwargs)
 
-def search(gitlab_server, token, file_filter, text, group=None, project_filter=None, api_debug=False, internal_debug=False, filename_regex=False):
+def search(gitlab_server, token, file_filter, search_regex, group=None, project_filter=None, api_debug=False, internal_debug=False, filename_regex=False):
     return_value = []
     
     gl = gitlab.Gitlab(gitlab_server, private_token=token)
@@ -72,14 +72,15 @@ def search(gitlab_server, token, file_filter, text, group=None, project_filter=N
             
             if filename_matches:
                 file_content = project.files.raw(file_path=file['path'], ref=default_branch)
-                
-                if text in str(file_content):
+                search_text = list(set(re.findall(search_regex, str(file_content))))
+                if search_text:
                     return_value.append({
                         "project_id": project.id,
                         "project_name": project.name,
                         "branch": default_branch,
                         "project_path": project.path_with_namespace,
                         "file": file['path'],
+                        "search_text": search_text,
                     })
     
     return return_value
@@ -92,7 +93,7 @@ if __name__ == '__main__':
     parser.add_argument("GITLAB_SERVER",      nargs=1,             help="URL of Gitlab server, eg. https://gitlab.com/")
     parser.add_argument("GITLAB_USER_TOKEN",  nargs=1,             help="Access token with api_read access")
     parser.add_argument("FILE_FILTER",        nargs=1,             help="Filter for filenames to search in")
-    parser.add_argument("TEXT_TO_SEARCH",     nargs=1,             help="Text to find in files")
+    parser.add_argument("SEARCH_TEXT_REGEX",     nargs=1,             help="Text to find in files")
     parser.add_argument("GROUP",              nargs='?',           help="Group to search for projects in, can be subgroup eg. parent_group/subgroup/another_subgroup")
     parser.add_argument("PROJECT_FILTER",     nargs='?',           help="Filter for project names to look into")
     parser.add_argument("-o", "--output", help="File name for export json")
@@ -104,7 +105,7 @@ if __name__ == '__main__':
     gitlab_server_arg  = args.GITLAB_SERVER[0]
     token_arg          = args.GITLAB_USER_TOKEN[0]
     file_filter_arg    = args.FILE_FILTER[0]
-    text_arg           = args.TEXT_TO_SEARCH[0]
+    text_arg           = args.SEARCH_TEXT_REGEX[0]
     group_arg          = None if args.GROUP          == None else args.GROUP
     project_filter_arg = None if args.PROJECT_FILTER == None else args.PROJECT_FILTER
     file_name          = args.output
@@ -120,8 +121,8 @@ if __name__ == '__main__':
         internal_debug_arg, 
         regex_arg
         )
-    if file_name:
+
+    if file_name and result:
         with open(file_name, "w+") as f:
             f.write(json.dumps(result))
-    else:
-        print(result)
+    print(result)
